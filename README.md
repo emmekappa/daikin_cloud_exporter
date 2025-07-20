@@ -4,8 +4,7 @@ A Prometheus exporter that collects data from Daikin Cloud API and exposes it as
 
 ## 🏠 Overview
 
-This application connects to the Daikin Cloud API to fetch real-time data from your Daikin HVAC devices and exposes it as Prometheus metrics. 
-It provides comprehensive monitoring of temperature, humidity, power consumption, and device status.
+This application connects to the Daikin Cloud API to fetch real-time data from your Daikin HVAC devices and exposes it as Prometheus metrics. It's designed to work within the daily API rate limits (200 calls/day) and provides comprehensive monitoring of temperature, humidity, power consumption, and device status.
 
 ## ✨ Features
 
@@ -13,8 +12,10 @@ It provides comprehensive monitoring of temperature, humidity, power consumption
 - **Energy consumption tracking** - Daily, weekly, and monthly power usage
 - **Prometheus metrics** - Standard format for integration with monitoring systems
 - **Rate limit compliant** - Respects Daikin's 200 API calls per day limit
+- **Data caching** - Intelligent caching to minimize API calls and survive restarts
 - **Health checks** - Built-in endpoint for service monitoring
 - **Graceful shutdown** - Proper cleanup on service termination
+- **Configurable paths** - Flexible file locations for certificates, cache, and tokens
 - **Docker support** - Ready for containerized deployment
 
 ## 📊 Exported Metrics
@@ -51,7 +52,7 @@ It provides comprehensive monitoring of temperature, humidity, power consumption
 1. **Daikin Developer Account**: Register at [developer.cloud.daikineurope.com](https://developer.cloud.daikineurope.com)
 2. **OIDC Credentials**: Create an application and get your client ID and secret
 3. **Node.js**: Version 18 or higher
-4. **ppnpm**: Package manager (or pnpm/yarn)
+4. **pnpm**: Package manager (or npm/yarn)
 
 ### Installation
 
@@ -61,7 +62,7 @@ git clone https://github.com/emmekappa/daikin_cloud_exporter.git
 cd daikin_cloud_exporter
 
 # Install dependencies
-ppnpm install
+pnpm install
 
 # Setup environment variables
 cp .env.example .env
@@ -74,8 +75,8 @@ Edit the `.env` file with your credentials:
 
 ```env
 # Daikin OIDC Client Credentials
-oidc_client_id=your_daikin_oidc_client_id_here
-oidc_client_secret=your_daikin_oidc_client_secret_here
+OIDC_CLIENT_ID=your_daikin_oidc_client_id_here
+OIDC_CLIENT_SECRET=your_daikin_oidc_client_secret_here
 
 # Monitoring Configuration (8 minutes = 480 seconds)
 # This respects the 200 API calls/day limit (~180 calls + 20 for testing)
@@ -83,6 +84,11 @@ UPDATE_INTERVAL=480
 
 # Prometheus Exporter Port
 PROMETHEUS_PORT=3001
+
+# File Paths Configuration
+CERT_PATH=./cert
+CACHE_FILE_PATH=./daikin-cache.json
+TOKEN_FILE_PATH=./daikin-controller-cloud-tokenset
 ```
 
 ### Running the Application
@@ -134,10 +140,13 @@ cert/                             # SSL certificates for OIDC flow
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
-| `oidc_client_id` | - | Daikin OIDC Client ID (required) |
-| `oidc_client_secret` | - | Daikin OIDC Client Secret (required) |
+| `OIDC_CLIENT_ID` | - | Daikin OIDC Client ID (required) |
+| `OIDC_CLIENT_SECRET` | - | Daikin OIDC Client Secret (required) |
 | `UPDATE_INTERVAL` | 480 | Data fetch interval in seconds |
 | `PROMETHEUS_PORT` | 3001 | Port for Prometheus metrics server |
+| `CERT_PATH` | `./cert` | Directory containing SSL certificates |
+| `CACHE_FILE_PATH` | `./daikin-cache.json` | File path for data cache |
+| `TOKEN_FILE_PATH` | `./daikin-controller-cloud-tokenset` | File path for OIDC tokens |
 
 ## 🐳 Docker Deployment
 
@@ -152,8 +161,8 @@ docker run -p 3001:3001 --env-file .env daikin-prometheus-exporter
 
 # Or with environment variables
 docker run -p 3001:3001 \
-  -e oidc_client_id=your_client_id \
-  -e oidc_client_secret=your_secret \
+  -e OIDC_CLIENT_ID=your_client_id \
+  -e OIDC_CLIENT_SECRET=your_secret \
   daikin-prometheus-exporter
 ```
 
@@ -187,6 +196,18 @@ To adjust the frequency, modify the `UPDATE_INTERVAL` environment variable:
 - More frequent: Lower interval (use sparingly)
 - Less frequent: Higher interval (more API calls available for testing)
 
+## 💾 Data Caching
+
+The application implements intelligent data caching to minimize API calls:
+
+- **Automatic caching**: API responses are cached locally
+- **Restart resilience**: Cached data is used on restart if still valid
+- **Configurable location**: Cache file location via `CACHE_FILE_PATH`
+- **TTL-based**: Cache respects the `UPDATE_INTERVAL` setting
+- **Transparent**: No configuration needed, works automatically
+
+This ensures that frequent restarts don't consume your daily API quota.
+
 ## 🤝 Contributing
 
 1. Fork the repository
@@ -211,8 +232,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 If you encounter issues:
 
 1. Check that your OIDC credentials are correct
-2. Verify SSL certificates are present in the `cert/` directory
+2. Verify SSL certificates are present in the configured `CERT_PATH` directory
 3. Ensure you're within the API rate limits
 4. Check the application logs for detailed error messages
+5. Verify file permissions for cache and token file locations
 
 For bugs and feature requests, please open an issue on GitHub.

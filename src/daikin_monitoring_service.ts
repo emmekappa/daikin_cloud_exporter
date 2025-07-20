@@ -1,19 +1,19 @@
 import { DaikinCloudController } from "daikin-controller-cloud";
 import { OnectaRateLimitStatus } from "daikin-controller-cloud/dist/onecta/oidc-utils.js";
 import { DaikinPrometheusExporter } from './daikin_prometheus_exporter.js';
-import { homedir } from 'node:os';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-// Ottieni __dirname equivalente per moduli ES
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { DaikinDataCache } from './daikin_data_cache.js';
+import { resolve } from 'node:path';
 
 interface DaikinConfig {
   oidcClientId: string;
   oidcClientSecret: string;
   updateInterval: number; // in secondi
   prometheusPort: number;
+  // Path configurations
+  certPath: string;
+  cacheFilePath: string;
+  tokenFilePath: string;
+  oidcCallbackServerPort: number;
 }
 
 export class DaikinMonitoringService {
@@ -21,19 +21,22 @@ export class DaikinMonitoringService {
   private config: DaikinConfig;
   private updateTimer?: NodeJS.Timeout;
   private controller: DaikinCloudController;
+  private cache: DaikinDataCache;
 
   constructor(config: DaikinConfig) {
     this.config = config;
     this.exporter = new DaikinPrometheusExporter();
+    this.cache = new DaikinDataCache(config.cacheFilePath);
 
-    // Inizializza il controller Daikin
+    // Inizializza il controller Daikin usando i path configurabili
     this.controller = new DaikinCloudController({
       oidcClientId: config.oidcClientId,
       oidcClientSecret: config.oidcClientSecret,
-      oidcTokenSetFilePath: resolve(homedir(), '.daikin-controller-cloud-tokenset'),
+      oidcTokenSetFilePath: config.tokenFilePath,
       oidcAuthorizationTimeoutS: 120,
-      certificatePathKey: resolve(__dirname, '..', 'cert', 'cert.key'),
-      certificatePathCert: resolve(__dirname, '..', 'cert', 'cert.pem'),
+      oidcCallbackServerPort: config.oidcCallbackServerPort,
+      certificatePathKey: resolve(config.certPath, 'cert.key'),
+      certificatePathCert: resolve(config.certPath, 'cert.pem'),
     });
 
     // Setup eventi del controller
@@ -60,6 +63,12 @@ Afterwards you are redirected to Daikin to approve the access and then redirecte
     try {
       console.log('🏠 Starting Daikin Monitoring Service...');
 
+      // Mostra info sulla cache esistente
+      const cacheInfo = await this.cache.getCacheInfo();
+      if (cacheInfo.exists) {
+        console.log(`💾 Found existing cache: ${cacheInfo.age}s old, ${cacheInfo.valid ? 'valid' : 'stale'}`);
+      }
+
       // Primo aggiornamento dati (che inizializza anche la connessione)
       await this.updateData();
 
@@ -81,20 +90,27 @@ Afterwards you are redirected to Daikin to approve the access and then redirecte
 
   private async updateData(): Promise<void> {
     try {
-      console.log('🔄 Fetching data from Daikin Cloud...');
+      console.log('🔄 Checking for data...');
 
-      // Chiamata reale al controller Daikin
-      const devices = await this.controller.getCloudDeviceDetails();
+      // Prima prova a caricare i dati dalla cache
+      let devices = await this.cache.loadData(this.config.updateInterval);
+
+      if (!devices) {
+        // Cache non valida o non presente - fetch dai server Daikin
+        console.log('🌐 Fetching fresh data from Daikin Cloud...');
+        devices = await this.controller.getCloudDeviceDetails();
+
+        // Salva i dati nella cache
+        await this.cache.saveData(devices, this.config.updateInterval);
+      }
 
       // Aggiorna le metriche Prometheus
       this.exporter.updateDevices(devices);
 
-      console.log(`✅ Updated ${devices.length} devices`);
+      console.log(`✅ Updated metrics for ${devices.length} devices`);
 
     } catch (error) {
       console.error('❌ Error updating data:', error);
-
-      // Potremmo aggiungere qui una metrica per tracciare gli errori
       throw error;
     }
   }

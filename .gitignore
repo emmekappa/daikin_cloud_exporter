@@ -15,6 +15,9 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # Environment variables with sensitive data
 .env
 
+# Daikin data cache
+daikin-cache.json
+
 # Runtime data
 pids
 *.pid
@@ -127,4 +130,4 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-.daikin-controller-cloud-tokenset
+daikin-controller-cloud-tokenset
