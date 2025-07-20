@@ -1,0 +1,1 @@
+Taken from https://github.com/Apollon77/daikin-controller-cloud/tree/main/cert
