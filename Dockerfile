@@ -3,7 +3,7 @@ FROM node:24-alpine
 # Install pnpm globally
 RUN npm install -g pnpm
 
-WORKDIR /app
+WORKDIR /
 
 # Copy package files and install dependencies
 COPY package*.json pnpm-lock.yaml ./
@@ -20,7 +20,7 @@ RUN pnpm run build
 RUN pnpm install --frozen-lockfile --prod
 
 # Create directories for data persistence
-RUN mkdir -p /app/data /app/data/cert
+RUN mkdir /data
 
 # Environment variables documentation and defaults
 ENV NODE_ENV=production
