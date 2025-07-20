@@ -6,18 +6,14 @@ import {DaikinMonitoringService} from './daikin_monitoring_service.js';
 // ============================================================================
 
 const {OIDC_CLIENT_ID, OIDC_CLIENT_SECRET} = process.env;
-if (!OIDC_CLIENT_ID || !OIDC_CLIENT_SECRET) {
-    console.error('❌ Please set the OIDC_CLIENT_ID and OIDC_CLIENT_SECRET environment variables');
-    process.exit(1);
-}
 
 // ============================================================================
 // Configure the monitoring service
 // ============================================================================
 
 const config = {
-    oidcClientId: OIDC_CLIENT_ID,
-    oidcClientSecret: OIDC_CLIENT_SECRET,
+    oidcClientId: OIDC_CLIENT_ID || '',
+    oidcClientSecret: OIDC_CLIENT_SECRET || '',
     updateInterval: parseInt(process.env.UPDATE_INTERVAL || '30'), // 30 seconds by default
     prometheusPort: parseInt(process.env.PROMETHEUS_PORT || '3001'), // port 3001 by default
     // Path configurations
@@ -26,6 +22,48 @@ const config = {
     tokenFilePath: process.env.TOKEN_FILE_PATH || './daikin-controller-cloud-tokenset',
     oidcCallbackServerPort: parseInt(process.env.OIDC_CALLBACK_SERVER_PORT || '59748'),
 };
+
+// ============================================================================
+// Configuration validation and logging
+// ============================================================================
+
+console.log('🔧 Starting Daikin Cloud Exporter...');
+console.log('📋 Configuration Summary:');
+console.log('├── OIDC Configuration:');
+console.log(`│   ├── Client ID: ${config.oidcClientId ? `${config.oidcClientId.substring(0, 8)}***` : '❌ NOT SET'}`);
+console.log(`│   ├── Client Secret: ${config.oidcClientSecret ? `${config.oidcClientSecret.substring(0, 8)}***` : '❌ NOT SET'}`);
+console.log(`│   └── Callback Port: ${config.oidcCallbackServerPort}`);
+console.log('├── Monitoring Configuration:');
+console.log(`│   ├── Update Interval: ${config.updateInterval}s (${Math.round(config.updateInterval/60)}min)`);
+console.log(`│   └── Prometheus Port: ${config.prometheusPort}`);
+console.log('├── File Paths:');
+console.log(`│   ├── Certificates: ${config.certPath}`);
+console.log(`│   ├── Cache File: ${config.cacheFilePath}`);
+console.log(`│   └── Token File: ${config.tokenFilePath}`);
+console.log('└── Rate Limiting:');
+const dailyCalls = Math.floor(24 * 60 * 60 / config.updateInterval);
+const remainingCalls = Math.max(0, 200 - dailyCalls);
+console.log(`    ├── Expected daily calls: ~${dailyCalls}`);
+console.log(`    └── API calls reserved: ${remainingCalls} (for testing/manual ops)`);
+
+// Validation warnings
+if (config.updateInterval < 300) {
+    console.warn('⚠️  Warning: Update interval < 5min may exceed daily API limits');
+}
+if (dailyCalls > 180) {
+    console.warn('⚠️  Warning: Current interval may exceed recommended daily usage');
+}
+
+console.log('');
+
+// ============================================================================
+// Validate required configuration
+// ============================================================================
+
+if (!OIDC_CLIENT_ID || !OIDC_CLIENT_SECRET) {
+    console.error('❌ Please set the OIDC_CLIENT_ID and OIDC_CLIENT_SECRET environment variables');
+    process.exit(1);
+}
 
 // ============================================================================
 // Start the monitoring service
