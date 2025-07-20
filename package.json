@@ -1,7 +1,7 @@
 {
   "name": "daikin_cloud_exporter",
   "version": "1.0.0",
-  "description": "",
+  "description": "A TypeScript-based Prometheus exporter that collects data from Daikin Cloud API and exposes HVAC metrics for monitoring and alerting",
   "homepage": "https://github.com/emmekappa/daikin_cloud_exporter#readme",
   "bugs": {
     "url": "https://github.com/emmekappa/daikin_cloud_exporter/issues"
